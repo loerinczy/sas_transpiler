@@ -97,7 +97,9 @@ def _render_module(job: Job, config: GenerationConfig) -> str:
         group_by = [col for col in (aggregate.group_by or []) if col and col.strip()]
         measures = [measure for measure in (aggregate.measures or []) if measure and measure.strip()]
         if group_by:
-            group_exprs = ", ".join(f"F.col({json.dumps(col)})" for col in group_by)
+            group_exprs = ", ".join(
+                f"F.col({json.dumps(_normalize_group_column(col))})" for col in group_by
+            )
             lines.append(f"    {working_name} = {working_name}.groupBy({group_exprs}).agg({', '.join(_translate_aggregate_measure(measure) for measure in measures)})")
         elif measures:
             lines.append(f"    {working_name} = {working_name}.agg({', '.join(_translate_aggregate_measure(measure) for measure in measures)})")
@@ -265,6 +267,16 @@ def _default_alias(dataset: str) -> str:
     if not alias:
         alias = "t"
     return alias
+
+
+def _normalize_group_column(column: str) -> str:
+    """Preserve raw group fragments while normalizing their leading qualifier."""
+    if "," not in column:
+        return column
+    first, remainder = column.split(",", 1)
+    if "." in first:
+        first = first.rsplit(".", 1)[-1]
+    return f"{first},{remainder}"
 
 
 def _spark_join_type(join_type: str) -> str:
