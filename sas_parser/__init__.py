@@ -23,6 +23,7 @@ from .models import (
     UnsupportedNode,
 )
 from .parser import parse_program
+from .semantic_lowerer import lower_program
 
 __all__ = [
     "Assignment",
@@ -48,6 +49,7 @@ __all__ = [
     "TargetRef",
     "Token",
     "UnsupportedNode",
+    "lower_program",
     "parse_program",
     "split_sections",
 ]
