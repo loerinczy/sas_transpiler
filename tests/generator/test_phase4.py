@@ -1,5 +1,5 @@
-from sas_generator import generate_job
-from sas_parser.models import Assignment, Filter, Job, Literal, SourceRef, TargetRef
+from src.sas_transpiler.sas_generator import generate_job
+from src.sas_transpiler.sas_parser.models import Assignment, Filter, Job, Literal, SourceRef, TargetRef
 
 
 def test_generate_job_applies_filters_before_transformations():

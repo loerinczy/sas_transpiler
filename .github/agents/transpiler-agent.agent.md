@@ -30,3 +30,4 @@ You are a specialist implementing a transpiler from SAS to PySpark as part of a 
 
 ## Instructions
 - never touch the test files in the tests directory if you are not specifically instructed to do so.
+- tests can be run via `pytest {test folder path}`

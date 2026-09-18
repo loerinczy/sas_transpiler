@@ -1,7 +1,7 @@
 import pytest
 
-from sas_generator import GenerationError, generate_job, validate_job
-from sas_parser.models import Assignment, Job, Literal, SourceRef, TargetRef
+from src.sas_transpiler.sas_generator import GenerationError, generate_job, validate_job
+from src.sas_transpiler.sas_parser.models import Assignment, Job, Literal, SourceRef, TargetRef
 
 
 def test_generate_job_emits_a_deterministic_compilable_module():

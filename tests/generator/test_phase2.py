@@ -1,5 +1,5 @@
-from sas_generator import generate_job
-from sas_parser.models import Assignment, Job, Literal, SourceRef, TargetRef
+from src.sas_transpiler.sas_generator import generate_job
+from src.sas_transpiler.sas_parser.models import Assignment, Job, Literal, SourceRef, TargetRef
 
 
 def test_generate_job_resolves_runtime_source_mapping_and_output_binding():

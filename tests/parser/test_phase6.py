@@ -1,4 +1,4 @@
-from sas_parser import lower_program, parse_program
+from src.sas_transpiler.sas_parser import lower_program, parse_program
 
 
 SAMPLE = '''

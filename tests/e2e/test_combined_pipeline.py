@@ -1,5 +1,5 @@
-from sas_generator import generate_job
-from sas_parser import lower_program, parse_program
+from src.sas_transpiler.sas_generator import generate_job
+from src.sas_transpiler.sas_parser import lower_program, parse_program
 
 
 SAS_JOB = """

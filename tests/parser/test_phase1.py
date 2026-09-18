@@ -1,6 +1,6 @@
-from sas_parser.blocks import split_sections
-from sas_parser.diagnostics import DiagnosticCollector
-from sas_parser.lexer import SASLexer
+from src.sas_transpiler.sas_parser.blocks import split_sections
+from src.sas_transpiler.sas_parser.diagnostics import DiagnosticCollector
+from src.sas_transpiler.sas_parser.lexer import SASLexer
 
 
 SAMPLE_JOB = '''

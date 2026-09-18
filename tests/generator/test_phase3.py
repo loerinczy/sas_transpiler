@@ -1,5 +1,5 @@
-from sas_generator import generate_job
-from sas_parser.models import Assignment, ColumnRef, FunctionCall, Job, Literal, SourceRef, TargetRef
+from src.sas_transpiler.sas_generator import generate_job
+from src.sas_transpiler.sas_parser.models import Assignment, ColumnRef, FunctionCall, Job, Literal, SourceRef, TargetRef
 
 
 def test_generate_job_translates_simple_expressions_into_spark_columns():

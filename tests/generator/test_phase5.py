@@ -1,5 +1,5 @@
-from sas_generator import generate_job
-from sas_parser.models import Aggregate, Filter, Job, Join, Literal, SourceRef, TargetRef
+from src.sas_transpiler.sas_generator import generate_job
+from src.sas_transpiler.sas_parser.models import Aggregate, Filter, Job, Join, Literal, SourceRef, TargetRef
 
 
 def test_generate_job_emits_sql_join_filter_and_aggregate_pipeline():
