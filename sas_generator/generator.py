@@ -6,7 +6,7 @@ import keyword
 import re
 from typing import Iterable, List, Tuple
 
-from sas_parser.models import Assignment, ColumnRef, FunctionCall, Job, Literal, SourceRef, TargetRef
+from sas_parser.models import Aggregate, Assignment, ColumnRef, Filter, FunctionCall, Job, Join, Literal, SourceRef, TargetRef
 
 from .models import GeneratedModule, GenerationConfig, GenerationError
 from .validation import validate_job
@@ -71,14 +71,43 @@ def _render_module(job: Job, config: GenerationConfig) -> str:
     else:
         working_name = "spark.createDataFrame([], schema='*')"
 
-    if job.transforms:
-        lines.append(f"    df_working = {working_name}")
-        working_name = "df_working"
-        for transform in job.transforms:
-            target = transform.target
-            expr = _translate_expression(transform.expression)
-            lines.append(f'    {working_name} = {working_name}.withColumn({json.dumps(target)}, {expr})')
-    else:
+    lines.append(f"    df_working = {working_name}")
+    working_name = "df_working"
+
+    source_binding_map = {dataset: variable for dataset, variable in source_bindings}
+
+    for join_step in job.joins:
+        left_var = source_binding_map.get(join_step.left.strip(), _safe_identifier(join_step.left.strip()))
+        right_var = source_binding_map.get(join_step.right.strip(), _safe_identifier(join_step.right.strip()))
+        left_alias = _default_alias(join_step.left.strip())
+        right_alias = _default_alias(join_step.right.strip())
+        left_alias_var = f"{left_var}_alias"
+        right_alias_var = f"{right_var}_alias"
+        lines.append(f"    {left_alias_var} = {left_var}.alias({json.dumps(left_alias)})")
+        lines.append(f"    {right_alias_var} = {right_var}.alias({json.dumps(right_alias)})")
+        join_type = _spark_join_type(join_step.type)
+        condition = _translate_expression(join_step.condition) if join_step.condition is not None else "F.lit(True)"
+        lines.append(f"    {working_name} = {left_alias_var}.join({right_alias_var}, ({condition}), how={json.dumps(join_type)})")
+
+    for filter_step in job.filters:
+        condition = _translate_expression(getattr(filter_step, "condition", None))
+        lines.append(f"    {working_name} = {working_name}.filter({condition})")
+
+    for aggregate in job.aggregates:
+        group_by = [col for col in (aggregate.group_by or []) if col and col.strip()]
+        measures = [measure for measure in (aggregate.measures or []) if measure and measure.strip()]
+        if group_by:
+            group_exprs = ", ".join(f"F.col({json.dumps(col)})" for col in group_by)
+            lines.append(f"    {working_name} = {working_name}.groupBy({group_exprs}).agg({', '.join(_translate_aggregate_measure(measure) for measure in measures)})")
+        elif measures:
+            lines.append(f"    {working_name} = {working_name}.agg({', '.join(_translate_aggregate_measure(measure) for measure in measures)})")
+
+    for transform in job.transforms:
+        target = transform.target
+        expr = _translate_expression(transform.expression)
+        lines.append(f'    {working_name} = {working_name}.withColumn({json.dumps(target)}, {expr})')
+
+    if not job.transforms and not job.filters and not job.joins and not job.aggregates and source_bindings:
         working_name = "df_working" if source_bindings else "spark.createDataFrame([], schema='*')"
         if source_bindings:
             lines.append(f"    {working_name} = {source_bindings[0][1]}")
@@ -204,6 +233,53 @@ def _translate_function_call(call: FunctionCall) -> str:
     return f"{fn}({', '.join(args)})"
 
 
+def _translate_aggregate_measure(measure: str) -> str:
+    cleaned = (measure or "").strip()
+    if not cleaned:
+        return "F.lit(None)"
+    match = re.match(r"^(?P<func>[A-Za-z_][A-Za-z0-9_]*)\s*\(\s*(?P<arg>[^)]*?)\s*\)\s*(?:as\s+(?P<alias>[A-Za-z_][A-Za-z0-9_]*))?\s*$", cleaned, flags=re.I)
+    if not match:
+        return f"F.lit({cleaned!r})"
+    func = match.group("func").lower()
+    arg = match.group("arg").strip()
+    alias = match.group("alias")
+    mapping = {"sum": "F.sum", "avg": "F.avg", "count": "F.count", "min": "F.min", "max": "F.max"}
+    spark_func = mapping.get(func, None)
+    if spark_func is None:
+        return f"F.lit({cleaned!r})"
+    if arg == "*":
+        expression = f"{spark_func}(F.lit(1))"
+    else:
+        expression = f"{spark_func}(F.col({json.dumps(arg)}))"
+    if alias:
+        expression = f"{expression}.alias({json.dumps(alias)})"
+    return expression
+
+
+def _default_alias(dataset: str) -> str:
+    token = re.split(r"[./\\]+", (dataset or "").strip())[-1]
+    parts = re.findall(r"[A-Za-z0-9]+", token)
+    if not parts:
+        return "t"
+    alias = parts[-1].lower()
+    if not alias:
+        alias = "t"
+    return alias
+
+
+def _spark_join_type(join_type: str) -> str:
+    value = (join_type or "inner").strip().lower()
+    if value.startswith("left"):
+        return "left"
+    if value.startswith("right"):
+        return "right"
+    if value.startswith("full"):
+        return "full"
+    if value.startswith("cross"):
+        return "cross"
+    return "inner"
+
+
 def _translate_raw_expression(expression: str) -> str:
     if not expression or not expression.strip():
         return "F.lit(None)"
@@ -228,14 +304,14 @@ def _translate_raw_expression(expression: str) -> str:
                 right = _translate_raw_expression(parts[1])
                 return f"({left}) & ({right})" if op.lower() == "and" else f"({left}) | ({right})"
 
-    for op in (">=", "<=", "==", "!=", "<>", ">", "<"):
+    for op in (">=", "<=", "==", "=", "!=", "<>", ">", "<"):
         match = re.search(re.escape(op), text)
         if match and _at_top_level(text, match.start()):
             parts = _split_top_level_operator(text, op)
             if len(parts) == 2:
                 left = _translate_raw_expression(parts[0])
                 right = _translate_raw_expression(parts[1])
-                translated = op.replace("<>", "!=")
+                translated = op.replace("<>", "!=").replace("=", "==")
                 return f"{left} {translated} {right}"
 
     for op in ("+", "-", "*", "/"):

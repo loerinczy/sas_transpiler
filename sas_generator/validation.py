@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
-from sas_parser.models import Assignment, Job, SourceRef, TargetRef
+from sas_parser.models import Assignment, Filter, Job, SourceRef, TargetRef
 
 from .models import GenerationDiagnostic
 
@@ -77,6 +77,17 @@ def validate_job(job: Job) -> List[GenerationDiagnostic]:
                     message=f"Output dataset '{target.dataset}' is not backed by a matching source dependency.",
                     code="MissingDependency",
                     dataset=target.dataset,
+                )
+            )
+
+    for filter_step in job.filters:
+        if not isinstance(filter_step, Filter) or filter_step.condition is None:
+            diagnostics.append(
+                GenerationDiagnostic(
+                    level="error",
+                    message="Each filter must be a Filter with a condition.",
+                    code="InvalidIR",
+                    dataset=getattr(filter_step, "condition", None),
                 )
             )
 
