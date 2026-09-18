@@ -41,6 +41,8 @@ class Statement(Node):
     from_tables: List[str] = field(default_factory=list)
     where_condition: str = ""
     group_by: List[str] = field(default_factory=list)
+    join_type: str = ""
+    join_condition: str = ""
     raw: str = ""
 
 

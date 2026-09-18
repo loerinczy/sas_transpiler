@@ -15,9 +15,16 @@ def parse_sql_block(body: str):
         select_fragment = select_match.group(1).strip()
         query.select_columns = [part.strip() for part in select_fragment.split(",") if part.strip()]
 
-    from_match = re.search(r"from\s+([a-z0-9_\.%]+)", lowered, flags=re.I)
-    if from_match:
-        query.from_tables = [from_match.group(1).strip()]
+    table_pattern = r"(?:from|join)\s+([a-z0-9_\.\%]+)(?:\s+as\s+[a-z0-9_\.%]+)?"
+    table_matches = re.findall(table_pattern, lowered, flags=re.I)
+    query.from_tables = [table.strip() for table in table_matches if table.strip()]
+
+    join_match = re.search(r"\b(left|right|inner|full|cross)\s+join\s+([a-z0-9_\.\%]+)(?:\s+as\s+[a-z0-9_\.%]+)?\s+on\s+(.*?)(?=\s+(?:where|group\s+by|order\s+by|;|$))", lowered, flags=re.I | re.S)
+    if join_match:
+        join_type, join_table, join_condition = join_match.groups()
+        query.join_type = f"{(join_type or 'inner').strip().lower()} join"
+        query.from_tables.append(join_table.strip())
+        query.join_condition = join_condition.strip()
 
     where_match = re.search(r"where\s+(.*?)(?:group\s+by|order\s+by|limit|;|$)", lowered, flags=re.I | re.S)
     if where_match:
